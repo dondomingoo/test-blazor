@@ -9,8 +9,13 @@
 
 <div>
     <input @bind="NewMessage" placeholder="Skriv en besked..." />
-    <button @onclick="SendMessage">Send</button>
+    <button @onclick="SendMessage" disabled="@isSending">Send</button>
 </div>
+
+@if (isSending)
+{
+    <p><em>Sender...</em></p>
+}
 
 <ul>
     @foreach (var message in Messages)
@@ -23,6 +28,7 @@
     private string Username { get; set; } = "";
     private string NewMessage { get; set; } = "";
     private List<ChatMessage> Messages { get; set; } = new();
+    private bool isSending = false; // Ny variabel til at styre "Sender..."-teksten
 
     [Inject] HttpClient Http { get; set; } = null!;
 
@@ -33,13 +39,19 @@
 
         var message = new ChatMessage { User = Username, Message = NewMessage };
 
+        isSending = true;  // Aktivér "Sender..."-tekst
+        StateHasChanged(); // Opdater UI'et
+
         await Http.PostAsJsonAsync("/api/SendMessage", message);
         NewMessage = "";
 
-        // Vent 3 sekunder, før beskeden hentes fra serveren
+        // Vent 3 sekunder
         await Task.Delay(3000);
 
         await LoadMessages();
+
+        isSending = false;  // Fjern "Sender..."-tekst
+        StateHasChanged(); // Opdater UI'et
     }
 
     private async Task LoadMessages()
