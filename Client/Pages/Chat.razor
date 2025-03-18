@@ -1,7 +1,7 @@
 ﻿@page "/chat"
 @using Shared
 
-<h3>Team 3 Nødchat</h3>
+<h3>Chat</h3>
 
 <div>
     <input @bind="Username" placeholder="Indtast brugernavn" />
@@ -9,18 +9,13 @@
 
 <div>
     <input @bind="NewMessage" placeholder="Skriv en besked..." />
-    <button @onclick="SendMessage" disabled="@isSending">Send</button>
+    <button @onclick="SendMessage" disabled="@isSending">@(isSending ? "Sender..." : "Send")</button>
 </div>
-
-@if (isSending)
-{
-    <p><em>Sender...</em></p>
-}
 
 <ul>
     @foreach (var message in Messages)
     {
-        <li><strong>@message.User:</strong> @message.Message <small> (@message.Timestamp.ToString("HH:mm:ss"))</small></li>
+        <li><strong>@message.User:</strong> @message.Message</li>
     }
 </ul>
 
@@ -28,7 +23,8 @@
     private string Username { get; set; } = "";
     private string NewMessage { get; set; } = "";
     private List<ChatMessage> Messages { get; set; } = new();
-    private bool isSending = false; // Ny variabel til at styre "Sender..."-teksten
+    private bool isSending = false;
+    private CancellationTokenSource? cancellationTokenSource;
 
     [Inject] HttpClient Http { get; set; } = null!;
 
@@ -39,28 +35,47 @@
 
         var message = new ChatMessage { User = Username, Message = NewMessage + " 🙂" };
 
-        isSending = true;  // Aktivér "Sender..."-tekst
-        StateHasChanged(); // Opdater UI'et
+        isSending = true;
+        StateHasChanged();
 
         await Http.PostAsJsonAsync("/api/SendMessage", message);
         NewMessage = "";
 
-        // Vent 3 sekunder
         await Task.Delay(3000);
 
         await LoadMessages();
 
-        isSending = false;  // Fjern "Sender..."-tekst
-        StateHasChanged(); // Opdater UI'et
+        isSending = false;
+        StateHasChanged();
     }
 
     private async Task LoadMessages()
     {
-        Messages = await Http.GetFromJsonAsync<List<ChatMessage>>("/api/GetMessages") ?? new();
+        var newMessages = await Http.GetFromJsonAsync<List<ChatMessage>>("/api/GetMessages") ?? new();
+        if (newMessages.Count != Messages.Count) // Undgå unødvendig UI-opdatering
+        {
+            Messages = newMessages;
+            StateHasChanged();
+        }
     }
 
     protected override async Task OnInitializedAsync()
     {
-        await LoadMessages();
+        cancellationTokenSource = new CancellationTokenSource();
+
+        // Start baggrundsopgave der opdaterer beskeder hver 5. sekund
+        _ = Task.Run(async () =>
+        {
+            while (!cancellationTokenSource.Token.IsCancellationRequested)
+            {
+                await LoadMessages();
+                await Task.Delay(5000, cancellationTokenSource.Token);
+            }
+        });
+    }
+
+    public void Dispose()
+    {
+        cancellationTokenSource?.Cancel();
     }
 }
