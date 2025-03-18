@@ -14,51 +14,52 @@ public static class ChatFunction
 
     [Function("SendMessage")]
     public static async Task<HttpResponseData> SendMessage(
-        [HttpTrigger(AuthorizationLevel.Anonymous, "post")] HttpRequestData req,
-        FunctionContext executionContext)
+    [HttpTrigger(AuthorizationLevel.Anonymous, "post")] HttpRequestData req,
+    FunctionContext executionContext)
     {
         var logger = executionContext.GetLogger("ChatFunction");
         logger.LogInformation("Processing chat message...");
 
-        // Læs body og deserialiser
-        string requestBody;
-        using (var reader = new StreamReader(req.Body))
-        {
-            requestBody = await reader.ReadToEndAsync();
-        }
+        string requestBody = await new StreamReader(req.Body).ReadToEndAsync();
         var message = JsonSerializer.Deserialize<ChatMessage>(requestBody, new JsonSerializerOptions { PropertyNameCaseInsensitive = true });
 
         var response = req.CreateResponse();
 
         if (message is null || string.IsNullOrWhiteSpace(message.User) || string.IsNullOrWhiteSpace(message.Message))
         {
-            response.StatusCode = HttpStatusCode.BadRequest;
+            response.StatusCode = System.Net.HttpStatusCode.BadRequest;
             await response.WriteStringAsync("Invalid message.");
             return response;
         }
 
+        // Sæt timestamp
+        message.Timestamp = DateTime.Now;
+
+        // Tilføj forsinkelse på 3 sekunder
+        await Task.Delay(3000);
+
         messages.Add(message);
 
-        response.StatusCode = HttpStatusCode.OK;
+        response.StatusCode = System.Net.HttpStatusCode.OK;
         response.Headers.Add("Content-Type", "application/json");
-        response.Headers.Add("Access-Control-Allow-Origin", "*"); // 🔥 CORS FIX!
-        await response.WriteAsJsonAsync(messages);
+        await response.WriteStringAsync(JsonSerializer.Serialize(messages));
+
         return response;
     }
 
+
     [Function("GetMessages")]
-    public static async Task<HttpResponseData> GetMessages(
-        [HttpTrigger(AuthorizationLevel.Anonymous, "get")] HttpRequestData req,
-        FunctionContext executionContext)
+    public static HttpResponseData GetMessages(
+    [HttpTrigger(AuthorizationLevel.Anonymous, "get")] HttpRequestData req,
+    FunctionContext executionContext)
     {
         var logger = executionContext.GetLogger("ChatFunction");
         logger.LogInformation("Returning chat messages...");
 
-        var response = req.CreateResponse(HttpStatusCode.OK);
-        response.Headers.Add("Content-Type", "application/json");
-        response.Headers.Add("Access-Control-Allow-Origin", "*"); // 🔥 CORS FIX!
+        var response = req.CreateResponse(System.Net.HttpStatusCode.OK);
+        response.Headers.Add("Content-Type", "application/json"); // Sikrer at header kun sættes én gang
+        response.WriteString(JsonSerializer.Serialize(messages)); // Manuel serialisering
 
-        await response.WriteAsJsonAsync(messages);
         return response;
     }
 }

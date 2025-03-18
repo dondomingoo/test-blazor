@@ -1,7 +1,6 @@
 ﻿@page "/chat"
 @using Shared
 
-
 <h3>Chat</h3>
 
 <div>
@@ -16,7 +15,7 @@
 <ul>
     @foreach (var message in Messages)
     {
-        <li><strong>@message.User:</strong> @message.Message</li>
+        <li><strong>@message.User:</strong> @message.Message <small> (@message.Timestamp.ToString("HH:mm:ss"))</small></li>
     }
 </ul>
 
@@ -33,8 +32,13 @@
             return;
 
         var message = new ChatMessage { User = Username, Message = NewMessage };
+
         await Http.PostAsJsonAsync("/api/SendMessage", message);
         NewMessage = "";
+
+        // Vent 3 sekunder, før beskeden hentes fra serveren
+        await Task.Delay(3000);
+
         await LoadMessages();
     }
 
