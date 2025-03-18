@@ -1,0 +1,50 @@
+﻿@page "/chat"
+@using Shared
+
+
+<h3>Chat</h3>
+
+<div>
+    <input @bind="Username" placeholder="Indtast brugernavn" />
+</div>
+
+<div>
+    <input @bind="NewMessage" placeholder="Skriv en besked..." />
+    <button @onclick="SendMessage">Send</button>
+</div>
+
+<ul>
+    @foreach (var message in Messages)
+    {
+        <li><strong>@message.User:</strong> @message.Message</li>
+    }
+</ul>
+
+@code {
+    private string Username { get; set; } = "";
+    private string NewMessage { get; set; } = "";
+    private List<ChatMessage> Messages { get; set; } = new();
+
+    [Inject] HttpClient Http { get; set; } = null!;
+
+    private async Task SendMessage()
+    {
+        if (string.IsNullOrWhiteSpace(Username) || string.IsNullOrWhiteSpace(NewMessage))
+            return;
+
+        var message = new ChatMessage { User = Username, Message = NewMessage };
+        await Http.PostAsJsonAsync("/api/SendMessage", message);
+        NewMessage = "";
+        await LoadMessages();
+    }
+
+    private async Task LoadMessages()
+    {
+        Messages = await Http.GetFromJsonAsync<List<ChatMessage>>("/api/GetMessages") ?? new();
+    }
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadMessages();
+    }
+}
