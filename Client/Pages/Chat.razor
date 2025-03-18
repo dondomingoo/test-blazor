@@ -1,7 +1,7 @@
 ﻿@page "/chat"
 @using Shared
 
-<h3>Chat</h3>
+<h3>Team 3 Nødchat</h3>
 
 <div>
     <input @bind="Username" placeholder="Indtast brugernavn" />
@@ -37,7 +37,7 @@
         if (string.IsNullOrWhiteSpace(Username) || string.IsNullOrWhiteSpace(NewMessage))
             return;
 
-        var message = new ChatMessage { User = Username, Message = NewMessage };
+        var message = new ChatMessage { User = Username, Message = NewMessage + " 🙂" };
 
         isSending = true;  // Aktivér "Sender..."-tekst
         StateHasChanged(); // Opdater UI'et
