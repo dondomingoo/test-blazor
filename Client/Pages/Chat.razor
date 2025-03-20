@@ -1,5 +1,7 @@
 ﻿@page "/chat"
 @using Shared
+@using System.Text.Json
+@inject HttpClient Http
 
 <h3>Chat</h3>
 
@@ -9,13 +11,23 @@
 
 <div>
     <input @bind="NewMessage" placeholder="Skriv en besked..." />
-    <button @onclick="SendMessage" disabled="@isSending">@(isSending ? "Sender..." : "Send")</button>
+    <button @onclick="SendMessage" disabled="@isSending">
+        @(isSending ? "Sender..." : "Send")
+    </button>
 </div>
+
+@if (isSending)
+{
+    <p><em>Sender besked...</em></p>
+}
 
 <ul>
     @foreach (var message in Messages)
     {
-        <li><strong>@message.User:</strong> @message.Message</li>
+        <li>
+            <strong>@message.User:</strong> @message.Message
+            <small>(@message.Timestamp.ToLocalTime().ToString("HH:mm:ss"))</small> <!-- 🕒 Vis timestamp -->
+        </li>
     }
 </ul>
 
@@ -26,22 +38,39 @@
     private bool isSending = false;
     private CancellationTokenSource? cancellationTokenSource;
 
-    [Inject] HttpClient Http { get; set; } = null!;
-
     private async Task SendMessage()
     {
         if (string.IsNullOrWhiteSpace(Username) || string.IsNullOrWhiteSpace(NewMessage))
             return;
 
-        var message = new ChatMessage { User = Username, Message = NewMessage + " 🙂" };
-
+        var message = new ChatMessage
+            {
+                User = Username,
+                Message = NewMessage + " 🙂",
+                Timestamp = DateTime.UtcNow
+            };
+        string jsonMessage = JsonSerializer.Serialize(message);
+        Console.WriteLine($"📤 Sender JSON: {jsonMessage}");
         isSending = true;
         StateHasChanged();
 
-        await Http.PostAsJsonAsync("/api/SendMessage", message);
+        try
+        {
+            var response = await Http.PostAsJsonAsync("/api/SendMessage", message);
+            if (!response.IsSuccessStatusCode)
+            {
+                var error = await response.Content.ReadAsStringAsync();
+                Console.WriteLine($"Fejl ved afsendelse: {response.StatusCode} - {error}");
+            }
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Exception ved afsendelse: {ex.Message}");
+        }
+
         NewMessage = "";
 
-        await Task.Delay(3000);
+        await Task.Delay(3000); // Simulerer forsinkelse på 3 sekunder
 
         await LoadMessages();
 
@@ -52,7 +81,7 @@
     private async Task LoadMessages()
     {
         var newMessages = await Http.GetFromJsonAsync<List<ChatMessage>>("/api/GetMessages") ?? new();
-        if (newMessages.Count != Messages.Count) // Undgå unødvendig UI-opdatering
+        if (!Messages.SequenceEqual(newMessages, new ChatMessageComparer()))
         {
             Messages = newMessages;
             StateHasChanged();
@@ -77,5 +106,6 @@
     public void Dispose()
     {
         cancellationTokenSource?.Cancel();
+        cancellationTokenSource?.Dispose();
     }
 }
